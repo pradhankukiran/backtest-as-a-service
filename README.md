@@ -45,11 +45,26 @@ backtest-as-a-service/
 ## Build phases
 
 1. **Project skeleton + data models** — done
-2. Bar ingestion pipeline (yfinance → Postgres) — next
-3. Backtest execution engine (Celery → backtesting.py → results)
+2. **Bar ingestion pipeline** (yfinance → Postgres) — done
+3. Backtest execution engine (Celery → backtesting.py → results) — next
 4. REST API + minimal UI
 5. Parameter sweeps
 6. Sandboxing hardening + cleanup
+
+### Bar ingestion
+
+- `bars.ingestion.fetch_daily_bars(ticker, start, end)` — yfinance pull with
+  exponential-backoff retry, returns clean list-of-dicts.
+- `bars.ingestion.upsert_bars(symbol, rows)` — Django 5 `bulk_create` with
+  `update_conflicts=True` against the `(symbol, ts, timeframe)` unique key.
+  Handles NaN/Inf, normalizes tz to UTC, dedupes within a batch.
+- Celery task: `bars.ingest_bars(ticker, days_back=...)`, with autoretry on
+  RuntimeError and exponential backoff capped at 600s.
+- Beat schedule: `bars.ingest_all_active_bars(days_back=5)` runs nightly at
+  02:00 UTC for every active Symbol.
+- Admin actions: select Symbols → "Ingest last 30 days" or "Backfill 365 days".
+- Management command: `python manage.py ingest_bars AAPL MSFT --start 2020-01-01`
+  (or `--all`, `--days-back N`, `--create-missing`).
 
 ## Local development
 
