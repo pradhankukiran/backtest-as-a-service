@@ -6,17 +6,20 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import BacktestRun, EquityPoint, Strategy, Trade
+from .models import BacktestRun, EquityPoint, ParameterSweep, Strategy, Trade
 from .serializers import (
     BacktestRunCreateSerializer,
     BacktestRunDetailSerializer,
     BacktestRunListSerializer,
     EquityPointSerializer,
+    ParameterSweepCreateSerializer,
+    ParameterSweepDetailSerializer,
+    ParameterSweepListSerializer,
     StrategyDetailSerializer,
     StrategySerializer,
     TradeSerializer,
 )
-from .tasks import run_backtest
+from .tasks import optimize, run_backtest
 
 
 class StrategyViewSet(viewsets.ModelViewSet):
@@ -75,3 +78,60 @@ class BacktestRunViewSet(viewsets.ModelViewSet):
     def equity_curve(self, request, pk=None):  # noqa: ARG002
         qs = EquityPoint.objects.filter(run_id=pk).order_by("ts")
         return Response(EquityPointSerializer(qs, many=True).data)
+
+
+class ParameterSweepViewSet(viewsets.ModelViewSet):
+    queryset = ParameterSweep.objects.select_related("strategy").prefetch_related("symbols").all()
+    filterset_fields = ["status", "strategy"]
+    search_fields = ["strategy__name", "strategy__slug"]
+    ordering_fields = ["created_at", "started_at", "finished_at", "duration_ms"]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return ParameterSweepCreateSerializer
+        if self.action == "list":
+            return ParameterSweepListSerializer
+        return ParameterSweepDetailSerializer
+
+    def create(self, request, *args, **kwargs):  # noqa: ARG002
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        sweep = serializer.save(
+            created_by=request.user if request.user.is_authenticated else None
+        )
+        optimize.delay(sweep.id)
+        detail = ParameterSweepDetailSerializer(sweep)
+        return Response(detail.data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["post"])
+    def rerun(self, request, pk=None):  # noqa: ARG002
+        sweep = self.get_object()
+        optimize.delay(sweep.id)
+        return Response(
+            {"sweep_id": sweep.id, "status": "queued"},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    @action(detail=True, methods=["get"], url_path="comparison")
+    def comparison(self, request, pk=None):  # noqa: ARG002
+        runs = (
+            BacktestRun.objects.filter(sweep_id=pk)
+            .select_related("metrics")
+            .order_by("id")
+        )
+        rows = []
+        for run in runs:
+            metrics = getattr(run, "metrics", None)
+            rows.append(
+                {
+                    "run_id": run.id,
+                    "status": run.status,
+                    "params": run.params,
+                    "return_pct": metrics.return_pct if metrics else None,
+                    "sharpe_ratio": metrics.sharpe_ratio if metrics else None,
+                    "max_drawdown_pct": metrics.max_drawdown_pct if metrics else None,
+                    "trade_count": metrics.trade_count if metrics else None,
+                    "final_equity": str(metrics.final_equity) if metrics else None,
+                }
+            )
+        return Response(rows)

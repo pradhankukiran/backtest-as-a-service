@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from bars.models import Symbol
 
-from .models import BacktestRun, EquityPoint, RunMetrics, Strategy, Trade
+from .models import BacktestRun, EquityPoint, ParameterSweep, RunMetrics, Strategy, Trade
 
 
 class SymbolMiniSerializer(serializers.ModelSerializer):
@@ -159,6 +159,92 @@ class BacktestRunCreateSerializer(serializers.ModelSerializer):
             "params",
         ]
         read_only_fields = ["id"]
+
+
+class ParameterSweepListSerializer(serializers.ModelSerializer):
+    strategy = serializers.CharField(source="strategy.name", read_only=True)
+    strategy_slug = serializers.CharField(source="strategy.slug", read_only=True)
+    symbols = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ParameterSweep
+        fields = [
+            "id",
+            "strategy",
+            "strategy_slug",
+            "symbols",
+            "timeframe",
+            "start_date",
+            "end_date",
+            "status",
+            "children_total",
+            "children_succeeded",
+            "children_failed",
+            "duration_ms",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_symbols(self, obj: ParameterSweep) -> list[str]:
+        return [s.ticker for s in obj.symbols.all()]
+
+
+class ParameterSweepCreateSerializer(serializers.ModelSerializer):
+    strategy = serializers.SlugRelatedField(slug_field="slug", queryset=Strategy.objects.all())
+    symbols = serializers.SlugRelatedField(
+        slug_field="ticker",
+        queryset=Symbol.objects.filter(is_active=True),
+        many=True,
+    )
+
+    class Meta:
+        model = ParameterSweep
+        fields = [
+            "id",
+            "strategy",
+            "symbols",
+            "timeframe",
+            "start_date",
+            "end_date",
+            "initial_capital",
+            "commission_bps",
+            "slippage_bps",
+            "base_params",
+            "grid",
+        ]
+        read_only_fields = ["id"]
+
+
+class ParameterSweepDetailSerializer(serializers.ModelSerializer):
+    strategy = StrategySerializer(read_only=True)
+    symbols = SymbolMiniSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ParameterSweep
+        fields = [
+            "id",
+            "strategy",
+            "symbols",
+            "timeframe",
+            "start_date",
+            "end_date",
+            "initial_capital",
+            "commission_bps",
+            "slippage_bps",
+            "base_params",
+            "grid",
+            "status",
+            "children_total",
+            "children_succeeded",
+            "children_failed",
+            "started_at",
+            "finished_at",
+            "duration_ms",
+            "error",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 
 
 class BacktestRunDetailSerializer(serializers.ModelSerializer):
