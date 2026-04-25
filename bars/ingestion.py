@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import pandas as pd
 import yfinance as yf
 from django.db import transaction
 from django.utils import timezone as djtz
@@ -86,7 +87,9 @@ def fetch_daily_bars(
         return []
 
     df = df.rename(columns=str.lower).reset_index()
-    ts_col = next(c for c in df.columns if c.lower() in {"date", "datetime"})
+    ts_col = next(
+        c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])
+    )
 
     rows: list[dict] = []
     for record in df.itertuples(index=False):
