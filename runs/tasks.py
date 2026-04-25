@@ -1,16 +1,18 @@
-"""Celery tasks for backtest execution."""
+"""Celery tasks for backtest execution and parameter sweeps."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, time, timezone
 
-from celery import shared_task
+from celery import chord, shared_task
+from django.db import transaction
 from django.utils import timezone as djtz
 
 from .engine import load_bars_dataframe, run_backtest_engine
-from .models import BacktestRun
+from .models import BacktestRun, ParameterSweep
 from .persistence import save_run_results
+from .sweeps import grid_size, iter_combos, merge_params
 
 log = logging.getLogger(__name__)
 
@@ -82,4 +84,108 @@ def run_backtest(self, run_id: int) -> dict:
         "status": final_status,
         "duration_ms": duration_ms,
         "error": error_msg,
+    }
+
+
+@shared_task(name="runs.optimize")
+def optimize(sweep_id: int) -> dict:
+    """Materialize child BacktestRuns for every grid combo and dispatch them as
+    a Celery chord. The `finalize_sweep` callback aggregates child results.
+    """
+    try:
+        sweep = ParameterSweep.objects.select_related("strategy").get(id=sweep_id)
+    except ParameterSweep.DoesNotExist:
+        log.warning("optimize: unknown sweep_id=%s", sweep_id)
+        return {"sweep_id": sweep_id, "error": "unknown_sweep"}
+
+    expected = grid_size(sweep.grid)
+
+    with transaction.atomic():
+        sweep.status = ParameterSweep.Status.RUNNING
+        sweep.started_at = djtz.now()
+        sweep.children_total = expected
+        sweep.children_succeeded = 0
+        sweep.children_failed = 0
+        sweep.error = ""
+        sweep.save(
+            update_fields=[
+                "status",
+                "started_at",
+                "children_total",
+                "children_succeeded",
+                "children_failed",
+                "error",
+                "updated_at",
+            ]
+        )
+
+        symbols = list(sweep.symbols.all())
+        children: list[BacktestRun] = []
+        for combo in iter_combos(sweep.grid):
+            child = BacktestRun.objects.create(
+                strategy=sweep.strategy,
+                sweep=sweep,
+                created_by=sweep.created_by,
+                timeframe=sweep.timeframe,
+                start_date=sweep.start_date,
+                end_date=sweep.end_date,
+                initial_capital=sweep.initial_capital,
+                commission_bps=sweep.commission_bps,
+                slippage_bps=sweep.slippage_bps,
+                params=merge_params(sweep.base_params, combo),
+            )
+            child.symbols.set(symbols)
+            children.append(child)
+
+    header = [run_backtest.s(child.id) for child in children]
+    callback = finalize_sweep.s(sweep.id)
+    chord(header, callback).apply_async()
+
+    return {"sweep_id": sweep.id, "children_queued": len(children)}
+
+
+@shared_task(name="runs.finalize_sweep")
+def finalize_sweep(child_results: list, sweep_id: int) -> dict:
+    """Chord callback: tally child outcomes and finalize the parent sweep row."""
+    succeeded = 0
+    failed = 0
+    for result in child_results or []:
+        if isinstance(result, dict) and result.get("status") == BacktestRun.Status.SUCCEEDED:
+            succeeded += 1
+        else:
+            failed += 1
+
+    finished_at = djtz.now()
+
+    with transaction.atomic():
+        sweep = ParameterSweep.objects.select_for_update().get(id=sweep_id)
+        sweep.children_succeeded = succeeded
+        sweep.children_failed = failed
+        if succeeded == sweep.children_total:
+            sweep.status = ParameterSweep.Status.SUCCEEDED
+        elif succeeded > 0:
+            sweep.status = ParameterSweep.Status.PARTIAL
+        else:
+            sweep.status = ParameterSweep.Status.FAILED
+        sweep.finished_at = finished_at
+        if sweep.started_at:
+            sweep.duration_ms = int(
+                (finished_at - sweep.started_at).total_seconds() * 1000
+            )
+        sweep.save(
+            update_fields=[
+                "status",
+                "finished_at",
+                "duration_ms",
+                "children_succeeded",
+                "children_failed",
+                "updated_at",
+            ]
+        )
+
+    return {
+        "sweep_id": sweep_id,
+        "status": sweep.status,
+        "succeeded": succeeded,
+        "failed": failed,
     }
