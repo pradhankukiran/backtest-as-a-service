@@ -48,8 +48,49 @@ backtest-as-a-service/
 2. **Bar ingestion pipeline** (yfinance → Postgres) — done
 3. **Backtest execution engine** (Celery → backtesting.py → results) — done
 4. **REST API + minimal UI** — done
-5. Parameter sweeps — next
-6. Sandboxing hardening + cleanup
+5. **Parameter sweeps** — done
+6. Sandboxing hardening + cleanup — next
+
+### Parameter sweeps
+
+POST `/api/sweeps/` to fan out one strategy across many parameter combos:
+
+```json
+{
+  "strategy": "sma-crossover",
+  "symbols": ["AAPL"],
+  "start_date": "2023-01-01",
+  "end_date":   "2024-01-01",
+  "initial_capital": 10000,
+  "commission_bps": 20,
+  "base_params": {},
+  "grid": {
+    "sma_short": [5, 10, 15, 20],
+    "sma_long":  {"start": 30, "stop": 70, "step": 10}
+  }
+}
+```
+
+→ 4 × 5 = **20 child runs** materialized as `BacktestRun` rows linked to the
+parent `ParameterSweep`, dispatched as a Celery `chord(group, callback)`.
+
+- Each combo runs as an independent `run_backtest` task; failures don't kill
+  the rest of the sweep (children always return a status dict, never raise).
+- The `finalize_sweep` chord callback aggregates the 20 child results and
+  flips the sweep to `succeeded` (all green), `partial` (some green, some red),
+  or `failed` (all red), with `children_succeeded` / `children_failed` counters.
+- Compare results at `/sweeps/<id>/` — sortable table of `(params, return,
+  Sharpe, max DD, trades, final equity)`. The best run by Sharpe is ★-marked.
+- Programmatic access: `GET /api/sweeps/<id>/comparison/` returns the same
+  table as JSON, ready for charting / heatmapping.
+
+Grid syntax accepts:
+
+| Form | Example | Expands to |
+|---|---|---|
+| List | `[5, 10, 15]` | three explicit values |
+| Range | `{"start": 5, "stop": 30, "step": 5}` | `[5,10,15,20,25,30]` |
+| Scalar | `42` | one value (constant for the sweep) |
 
 ### REST API + UI
 
