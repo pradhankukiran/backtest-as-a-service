@@ -115,11 +115,26 @@ CELERY_BROKER_URL = env("CELERY_BROKER_URL", default=REDIS_URL)
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=REDIS_URL)
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
+CELERY_RESULT_EXPIRES = 60 * 60 * 24  # children outlive multi-hour sweeps
+CELERY_TASK_TIME_LIMIT = 60
+CELERY_TASK_SOFT_TIME_LIMIT = 50
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_ROUTES = {
+    # User-supplied strategy code runs here. The default Celery worker does
+    # NOT consume this queue; a dedicated worker-untrusted container does,
+    # so the blast radius of a runaway strategy stays contained.
+    "runs.run_backtest": {"queue": "untrusted"},
+}
 CELERY_BEAT_SCHEDULE = {
     "ingest-active-bars-nightly": {
         "task": "bars.ingest_all_active_bars",
         "schedule": crontab(hour="2", minute="0"),
         "kwargs": {"days_back": 5},
+    },
+    "cleanup-stale-runs-weekly": {
+        "task": "runs.cleanup_stale_runs",
+        "schedule": crontab(hour="3", minute="0", day_of_week="sunday"),
+        "kwargs": {"older_than_days": 90},
     },
 }
 
