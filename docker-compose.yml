@@ -59,6 +59,30 @@ services:
       redis:
         condition: service_healthy
 
+  worker-untrusted:
+    # Runs user-supplied strategy code only. The hardening below is intentional
+    # and meaningful — keep it on by default. For production-grade isolation
+    # also attach this service to an `internal: true` network with no external
+    # egress; see README "Sandboxing notes" for the recipe.
+    build: .
+    environment:
+      <<: *app-environment
+      BACKTESTER_ROLE: worker-untrusted
+    cap_drop: ["ALL"]
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: "1.0"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   beat:
     build: .
     environment:

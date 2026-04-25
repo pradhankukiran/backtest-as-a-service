@@ -10,13 +10,21 @@ case "$ROLE" in
     exec gunicorn backtester.wsgi:application --bind "0.0.0.0:${PORT}"
     ;;
   worker)
-    exec celery -A backtester worker --loglevel=info --concurrency=2
+    exec celery -A backtester worker -Q default -n default@%h \
+      --loglevel=info --concurrency=4
+    ;;
+  worker-untrusted)
+    # Consumes ONLY the 'untrusted' queue. User-supplied strategy code runs
+    # here. --max-tasks-per-child=1 means each task runs in a fresh process,
+    # so leaked file descriptors / globals can't carry between user runs.
+    exec celery -A backtester worker -Q untrusted -n untrusted@%h \
+      --loglevel=info --concurrency=2 --max-tasks-per-child=1
     ;;
   beat)
     exec celery -A backtester beat --loglevel=info
     ;;
   *)
-    echo "Unknown BACKTESTER_ROLE: ${ROLE} (expected web|worker|beat)" >&2
+    echo "Unknown BACKTESTER_ROLE: ${ROLE} (expected web|worker|worker-untrusted|beat)" >&2
     exit 1
     ;;
 esac
