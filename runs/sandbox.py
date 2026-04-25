@@ -96,7 +96,7 @@ def load_strategy_class(source: str, entrypoint: str = "Strategy") -> type:
     except Exception as exc:
         raise StrategySandboxError(f"strategy load failed: {exc}") from exc
 
-    cls = namespace.get(entrypoint)
+    cls = namespace.get(entrypoint) if entrypoint != "Strategy" else None
     if cls is None:
         candidates = [
             value
@@ -115,6 +115,6 @@ def load_strategy_class(source: str, entrypoint: str = "Strategy") -> type:
                 f"no class named {entrypoint!r} and no Strategy subclass found"
             )
 
-    if not (isinstance(cls, type) and issubclass(cls, Strategy)):
+    if not (isinstance(cls, type) and issubclass(cls, Strategy)) or cls is Strategy:
         raise StrategySandboxError(f"{entrypoint!r} is not a backtesting.Strategy subclass")
     return cls
