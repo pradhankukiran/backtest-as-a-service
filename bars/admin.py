@@ -1,11 +1,12 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 
 from .models import Bar, Symbol
 from .tasks import ingest_bars
 
 
 @admin.register(Symbol)
-class SymbolAdmin(admin.ModelAdmin):
+class SymbolAdmin(ModelAdmin):
     list_display = ("ticker", "name", "exchange", "asset_class", "currency", "is_active")
     list_filter = ("asset_class", "is_active", "exchange")
     search_fields = ("ticker", "name")
@@ -26,7 +27,7 @@ class SymbolAdmin(admin.ModelAdmin):
 
 
 @admin.register(Bar)
-class BarAdmin(admin.ModelAdmin):
+class BarAdmin(ModelAdmin):
     list_display = ("symbol", "ts", "timeframe", "open", "high", "low", "close", "volume")
     list_filter = ("timeframe", "symbol")
     search_fields = ("symbol__ticker",)

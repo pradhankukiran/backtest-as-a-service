@@ -1,10 +1,53 @@
 from django.contrib import admin
+from django.contrib.auth import get_user_model
+from django.contrib.auth.admin import GroupAdmin as DjangoGroupAdmin
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import Group
+from unfold.admin import ModelAdmin, TabularInline
+from unfold.forms import AdminPasswordChangeForm, UserChangeForm, UserCreationForm
 
 from .models import BacktestRun, EquityPoint, ParameterSweep, RunMetrics, Strategy, Trade
 from .tasks import optimize
 
+User = get_user_model()
+admin.site.unregister(User)
+admin.site.unregister(Group)
 
-class TradeInline(admin.TabularInline):
+
+@admin.register(User)
+class UserAdmin(DjangoUserAdmin, ModelAdmin):
+    form = UserChangeForm
+    add_form = UserCreationForm
+    change_password_form = AdminPasswordChangeForm
+    list_display = ("username", "is_staff", "is_superuser", "last_login", "date_joined")
+    search_fields = ("username",)
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        (
+            "Permissions",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
+        ),
+        ("Important dates", {"fields": ("last_login", "date_joined")}),
+    )
+    add_fieldsets = (
+        (None, {"classes": ("wide",), "fields": ("username", "password1", "password2")}),
+    )
+
+
+@admin.register(Group)
+class GroupAdmin(DjangoGroupAdmin, ModelAdmin):
+    pass
+
+
+class TradeInline(TabularInline):
     model = Trade
     extra = 0
     can_delete = False
@@ -25,7 +68,7 @@ class TradeInline(admin.TabularInline):
 
 
 @admin.register(Strategy)
-class StrategyAdmin(admin.ModelAdmin):
+class StrategyAdmin(ModelAdmin):
     list_display = ("name", "slug", "user", "is_active", "updated_at")
     list_filter = ("is_active",)
     search_fields = ("name", "slug", "description")
@@ -33,7 +76,7 @@ class StrategyAdmin(admin.ModelAdmin):
 
 
 @admin.register(BacktestRun)
-class BacktestRunAdmin(admin.ModelAdmin):
+class BacktestRunAdmin(ModelAdmin):
     list_display = (
         "id",
         "strategy",
@@ -54,7 +97,7 @@ class BacktestRunAdmin(admin.ModelAdmin):
 
 
 @admin.register(Trade)
-class TradeAdmin(admin.ModelAdmin):
+class TradeAdmin(ModelAdmin):
     list_display = (
         "id",
         "run",
@@ -72,7 +115,7 @@ class TradeAdmin(admin.ModelAdmin):
 
 
 @admin.register(EquityPoint)
-class EquityPointAdmin(admin.ModelAdmin):
+class EquityPointAdmin(ModelAdmin):
     list_display = ("run", "ts", "equity", "drawdown_pct")
     list_filter = ("run",)
     raw_id_fields = ("run",)
@@ -80,7 +123,7 @@ class EquityPointAdmin(admin.ModelAdmin):
 
 
 @admin.register(RunMetrics)
-class RunMetricsAdmin(admin.ModelAdmin):
+class RunMetricsAdmin(ModelAdmin):
     list_display = (
         "run",
         "return_pct",
@@ -93,7 +136,7 @@ class RunMetricsAdmin(admin.ModelAdmin):
 
 
 @admin.register(ParameterSweep)
-class ParameterSweepAdmin(admin.ModelAdmin):
+class ParameterSweepAdmin(ModelAdmin):
     list_display = (
         "id",
         "strategy",

@@ -4,6 +4,8 @@ from pathlib import Path
 
 import environ
 from celery.schedules import crontab
+from django.templatetags.static import static
+from django.urls import reverse_lazy
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,6 +28,9 @@ ALLOWED_HOSTS = env("ALLOWED_HOSTS")
 CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -142,3 +147,103 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 X_FRAME_OPTIONS = "DENY"
+
+UNFOLD = {
+    "SITE_TITLE": "Backtester",
+    "SITE_HEADER": "Backtester",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "THEME": "light",
+    "STYLES": [
+        lambda request: static("runs/admin-overrides.css"),
+    ],
+    "COLORS": {
+        "primary": {
+            "50": "236 253 245",
+            "100": "209 250 229",
+            "200": "167 243 208",
+            "300": "110 231 183",
+            "400": "52 211 153",
+            "500": "16 185 129",
+            "600": "5 150 105",
+            "700": "4 120 87",
+            "800": "6 95 70",
+            "900": "6 78 59",
+            "950": "2 44 34",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Operations",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Backtest runs",
+                        "icon": "show_chart",
+                        "link": reverse_lazy("admin:runs_backtestrun_changelist"),
+                    },
+                    {
+                        "title": "Parameter sweeps",
+                        "icon": "tune",
+                        "link": reverse_lazy("admin:runs_parametersweep_changelist"),
+                    },
+                    {
+                        "title": "Trades",
+                        "icon": "swap_horiz",
+                        "link": reverse_lazy("admin:runs_trade_changelist"),
+                    },
+                    {
+                        "title": "Equity points",
+                        "icon": "ssid_chart",
+                        "link": reverse_lazy("admin:runs_equitypoint_changelist"),
+                    },
+                    {
+                        "title": "Run metrics",
+                        "icon": "monitoring",
+                        "link": reverse_lazy("admin:runs_runmetrics_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Configuration",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Strategies",
+                        "icon": "psychology",
+                        "link": reverse_lazy("admin:runs_strategy_changelist"),
+                    },
+                    {
+                        "title": "Symbols",
+                        "icon": "candlestick_chart",
+                        "link": reverse_lazy("admin:bars_symbol_changelist"),
+                    },
+                    {
+                        "title": "Bars",
+                        "icon": "bar_chart",
+                        "link": reverse_lazy("admin:bars_bar_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Access",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Users",
+                        "icon": "person",
+                        "link": reverse_lazy("admin:auth_user_changelist"),
+                    },
+                    {
+                        "title": "Groups",
+                        "icon": "group",
+                        "link": reverse_lazy("admin:auth_group_changelist"),
+                    },
+                ],
+            },
+        ],
+    },
+}

@@ -19,6 +19,7 @@ dependencies = [
   "numpy>=1.26,<3",
   "yfinance>=0.2.50,<1",
   "backtesting==0.6.5",
+  "django-unfold>=0.90.0",
 ]
 
 [dependency-groups]
