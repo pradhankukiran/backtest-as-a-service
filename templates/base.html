@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Backtester{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/runs/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -204,7 +205,15 @@
 <body>
     <nav class="topbar">
         <div class="inner">
-            <a href="{% url 'landing' %}" class="brand">Backtester</a>
+            <a href="{% url 'landing' %}" class="brand" style="display:inline-flex;align-items:center;gap:10px;">
+                <svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true">
+                    <polyline points="4,22 10,18 14,20 19,13 25,8 28,10"
+                              fill="none" stroke="currentColor" stroke-width="3"
+                              stroke-linecap="square" stroke-linejoin="miter"/>
+                    <circle cx="28" cy="10" r="2.2" fill="currentColor"/>
+                </svg>
+                <span>Backtester</span>
+            </a>
             <div class="links">
                 <a href="{% url 'runs-page' %}">Runs</a>
                 <a href="{% url 'sweeps-page' %}">Sweeps</a>
