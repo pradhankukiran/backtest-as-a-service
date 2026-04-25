@@ -49,7 +49,37 @@ backtest-as-a-service/
 3. **Backtest execution engine** (Celery → backtesting.py → results) — done
 4. **REST API + minimal UI** — done
 5. **Parameter sweeps** — done
-6. Sandboxing hardening + cleanup — next
+6. **Sandboxing hardening + cleanup** — done
+
+### Sandboxing notes
+
+User-supplied strategy code only runs on a dedicated Celery queue named
+`untrusted`. The mapping is enforced in two places:
+
+- `CELERY_TASK_ROUTES = {"runs.run_backtest": {"queue": "untrusted"}}` in settings
+- `@shared_task(queue="untrusted", time_limit=600, soft_time_limit=540)` on
+  the task itself (belt-and-braces: misrouting is a security hazard, so the
+  task pins its own queue)
+
+The default `worker` container consumes `-Q default` only. A separate
+`worker-untrusted` container consumes `-Q untrusted` and runs hardened:
+
+- `cap_drop: ["ALL"]`, `security_opt: no-new-privileges`
+- `read_only: true` filesystem with a 64 MB tmpfs for `/tmp`
+- `pids_limit: 256`, `mem_limit: 1g`, `cpus: "1.0"`
+- `--max-tasks-per-child=1` so each strategy run is a fresh process
+
+That covers resource bulkhead and most "casual" misuse. For real isolation
+against malicious strategies, attach `worker-untrusted` to an
+`internal: true` Docker network with no external egress (db and redis
+double-attached) — or move the worker behind gVisor / a Firecracker microVM.
+
+### Cleanup
+
+`runs.cleanup_stale_runs` runs weekly (Sundays 03:00 UTC). It drops
+`EquityPoint` and `Trade` rows for `SUCCEEDED` runs older than 90 days.
+The `BacktestRun` and `RunMetrics` summaries are kept so historical
+dashboards still render.
 
 ### Parameter sweeps
 
