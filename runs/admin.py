@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from .models import BacktestRun, EquityPoint, RunMetrics, Strategy, Trade
+from .models import BacktestRun, EquityPoint, ParameterSweep, RunMetrics, Strategy, Trade
+from .tasks import optimize
 
 
 class TradeInline(admin.TabularInline):
@@ -89,3 +90,38 @@ class RunMetricsAdmin(admin.ModelAdmin):
         "win_rate_pct",
     )
     raw_id_fields = ("run",)
+
+
+@admin.register(ParameterSweep)
+class ParameterSweepAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "strategy",
+        "status",
+        "children_total",
+        "children_succeeded",
+        "children_failed",
+        "duration_ms",
+        "created_at",
+    )
+    list_filter = ("status", "strategy")
+    raw_id_fields = ("strategy", "created_by")
+    filter_horizontal = ("symbols",)
+    readonly_fields = (
+        "started_at",
+        "finished_at",
+        "duration_ms",
+        "children_total",
+        "children_succeeded",
+        "children_failed",
+        "error",
+        "created_at",
+        "updated_at",
+    )
+    actions = ["queue_sweep"]
+
+    @admin.action(description="Queue / re-queue selected sweeps")
+    def queue_sweep(self, request, queryset):
+        for sweep in queryset:
+            optimize.delay(sweep.id)
+        self.message_user(request, f"Queued {queryset.count()} sweep(s).")
