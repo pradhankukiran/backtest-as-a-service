@@ -96,6 +96,7 @@ class BacktestRunAdmin(ModelAdmin):
     readonly_fields = ("started_at", "finished_at", "duration_ms", "error", "created_at", "updated_at")
     inlines = [TradeInline]
     view_on_site = True
+    actions = ["queue_run"]
 
     @admin.display(description="View")
     def open_link(self, obj):
@@ -106,6 +107,14 @@ class BacktestRunAdmin(ModelAdmin):
             'style="text-decoration:none;font-weight:600;">↗ open</a>',
             obj.get_absolute_url(),
         )
+
+    @admin.action(description="Queue / re-queue selected runs")
+    def queue_run(self, request, queryset):
+        from .tasks import run_backtest
+
+        for run in queryset:
+            run_backtest.delay(run.id)
+        self.message_user(request, f"Queued {queryset.count()} run(s).")
 
 
 @admin.register(Trade)
