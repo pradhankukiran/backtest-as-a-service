@@ -134,6 +134,9 @@
             background: var(--slate-bg);
         }
         tr:last-child td { border-bottom: none; }
+        tbody tr[onclick] { transition: background 0.1s ease; }
+        tbody tr[onclick]:hover { background: var(--emerald-50); }
+        tbody tr[onclick]:hover td a { color: var(--emerald-dark); }
         td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         td.pos { color: var(--green); }
         td.neg { color: var(--red); }
