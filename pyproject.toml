@@ -1,0 +1,40 @@
+[project]
+name = "backtest-as-a-service"
+version = "0.1.0"
+description = "Self-hosted Django/Postgres/Celery service that runs trading-strategy backtests via backtesting.py."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "django>=5.2,<6",
+  "djangorestframework>=3.15,<4",
+  "django-environ>=0.11,<1",
+  "django-filter>=24.3,<26",
+  "drf-spectacular>=0.27,<1",
+  "celery>=5.4,<6",
+  "redis>=5,<7",
+  "psycopg[binary]>=3.2,<4",
+  "gunicorn>=22,<24",
+  "whitenoise>=6.7,<7",
+  "pandas>=2.2,<3",
+  "numpy>=1.26,<3",
+  "yfinance>=0.2.50,<1",
+  "backtesting==0.6.5",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-django>=4.9,<5",
+  "ruff>=0.8,<1",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "backtester.settings"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
