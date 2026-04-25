@@ -3,7 +3,10 @@
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
+from django.views.generic import TemplateView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
+from runs.views import run_detail, runs_list
 
 
 def health_check(_request):
@@ -11,6 +14,9 @@ def health_check(_request):
 
 
 urlpatterns = [
+    path("", TemplateView.as_view(template_name="landing.html"), name="landing"),
+    path("runs/", runs_list, name="runs-page"),
+    path("runs/<int:run_id>/", run_detail, name="run-detail"),
     path("admin/", admin.site.urls),
     path("healthz/", health_check, name="health-check"),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Backtester{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:48px;">
+    <h1>Backtester</h1>
+    <p class="lead">
+        Self-hosted Django + Postgres + Celery service that runs Python trading
+        strategies against historical OHLCV bars. Backtests run as background
+        jobs; results land in a queryable, replayable history.
+    </p>
+</header>
+
+<section>
+    <h2>Console</h2>
+    <div class="metrics">
+        <a href="{% url 'runs-page' %}" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="label">Backtest Runs</div>
+            <div class="value" style="font-size:16px;font-weight:600;">Browse history &rarr;</div>
+        </a>
+        <a href="/admin/runs/strategy/" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="label">Strategies</div>
+            <div class="value" style="font-size:16px;font-weight:600;">Manage &rarr;</div>
+        </a>
+        <a href="/admin/bars/symbol/" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="label">Symbols</div>
+            <div class="value" style="font-size:16px;font-weight:600;">Configure &rarr;</div>
+        </a>
+        <a href="/api/docs/" class="metric" style="text-decoration:none;color:inherit;">
+            <div class="label">REST API</div>
+            <div class="value" style="font-size:16px;font-weight:600;">Swagger &rarr;</div>
+        </a>
+    </div>
+</section>
+
+<section>
+    <h2>Submit a backtest from the shell</h2>
+    <div class="mono" style="background:var(--navy-darker);color:#e2e8ff;padding:20px 24px;font-size:13px;line-height:1.7;overflow-x:auto;border-left:3px solid var(--navy);"><span style="color:#94a3c4;"># 1. ingest bars for a symbol</span>
+python manage.py ingest_bars AAPL --create-missing --days-back 365
+
+<span style="color:#94a3c4;"># 2. install the built-in SMA crossover strategy</span>
+python manage.py install_builtin_strategies
+
+<span style="color:#94a3c4;"># 3. POST a run via the REST API (or use the admin)</span>
+curl -X POST http://localhost:8000/api/runs/ \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "strategy": "sma-crossover",
+    "symbols": ["AAPL"],
+    "start_date": "2024-04-01",
+    "end_date":   "2025-04-01",
+    "initial_capital": 10000,
+    "commission_bps": 20,
+    "params": {"sma_short": 10, "sma_long": 30}
+  }'</div>
+</section>
+{% endblock %}

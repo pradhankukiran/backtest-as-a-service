@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Run #{{ run.id }} &middot; Backtester{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:32px;">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+        <a href="{% url 'runs-page' %}">Runs</a> &nbsp;/&nbsp; <span class="mono">#{{ run.id }}</span>
+    </div>
+    <h1 style="margin-bottom:12px;">{{ run.strategy.name }}</h1>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        {% if run.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ run.status }}</span>
+        {% elif run.status == 'failed' or run.status == 'cancelled' %}<span class="pill bad"><span class="dot"></span>{{ run.status }}</span>
+        {% elif run.status == 'running' %}<span class="pill warn"><span class="dot"></span>{{ run.status }}</span>
+        {% else %}<span class="pill idle"><span class="dot"></span>{{ run.status }}</span>{% endif %}
+        <span class="mono" style="font-size:13px;color:var(--muted);">
+            {% for s in run.symbols.all %}{{ s.ticker }}{% if not forloop.last %}, {% endif %}{% endfor %}
+            &middot; {{ run.start_date }} &rarr; {{ run.end_date }} &middot;
+            ${{ run.initial_capital }} initial &middot; {{ run.commission_bps }}bps fees
+        </span>
+    </div>
+    {% if run.error %}
+    <pre style="margin-top:16px;padding:16px;background:var(--red-bg);border:1px solid #fecaca;color:var(--red);font-size:13px;white-space:pre-wrap;">{{ run.error }}</pre>
+    {% endif %}
+</header>
+
+{% if run.metrics %}
+<section>
+    <h2>Metrics</h2>
+    <div class="metrics">
+        <div class="metric"><div class="label">Return</div><div class="value {% if run.metrics.return_pct > 0 %}pos{% elif run.metrics.return_pct < 0 %}neg{% endif %}">{{ run.metrics.return_pct|floatformat:2 }}%</div></div>
+        <div class="metric"><div class="label">Buy &amp; Hold</div><div class="value">{{ run.metrics.buy_hold_return_pct|floatformat:2 }}%</div></div>
+        <div class="metric"><div class="label">Sharpe</div><div class="value">{{ run.metrics.sharpe_ratio|floatformat:2 }}</div></div>
+        <div class="metric"><div class="label">Sortino</div><div class="value">{{ run.metrics.sortino_ratio|floatformat:2 }}</div></div>
+        <div class="metric"><div class="label">Max Drawdown</div><div class="value neg">{{ run.metrics.max_drawdown_pct|floatformat:2 }}%</div></div>
+        <div class="metric"><div class="label">Win Rate</div><div class="value">{{ run.metrics.win_rate_pct|floatformat:1 }}%</div></div>
+        <div class="metric"><div class="label">Trades</div><div class="value">{{ run.metrics.trade_count }}</div></div>
+        <div class="metric"><div class="label">Final equity</div><div class="value">${{ run.metrics.final_equity }}</div></div>
+    </div>
+</section>
+{% endif %}
+
+<section>
+    <h2>Equity curve</h2>
+    <div id="equity-chart" style="width:100%;height:420px;background:#0b1224;"></div>
+</section>
+
+{% if trades %}
+<section>
+    <h2>Trades ({{ trades|length }})</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Side</th>
+                <th class="num">Qty</th>
+                <th>Entry</th>
+                <th class="num">Entry $</th>
+                <th>Exit</th>
+                <th class="num">Exit $</th>
+                <th class="num">P/L</th>
+                <th class="num">Return</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in trades %}
+            <tr>
+                <td><span class="pill {% if t.side == 'long' %}ok{% else %}bad{% endif %}" style="font-size:10px;padding:2px 8px;">{{ t.side }}</span></td>
+                <td class="num">{{ t.qty }}</td>
+                <td class="mono" style="font-size:12px;">{{ t.entry_ts|date:"Y-m-d" }}</td>
+                <td class="num">{{ t.entry_price|floatformat:2 }}</td>
+                <td class="mono" style="font-size:12px;">{% if t.exit_ts %}{{ t.exit_ts|date:"Y-m-d" }}{% else %}—{% endif %}</td>
+                <td class="num">{% if t.exit_price %}{{ t.exit_price|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="num {% if t.pnl > 0 %}pos{% elif t.pnl < 0 %}neg{% endif %}">{% if t.pnl %}{{ t.pnl|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="num {% if t.return_pct > 0 %}pos{% elif t.return_pct < 0 %}neg{% endif %}">{% if t.return_pct %}{{ t.return_pct|floatformat:2 }}%{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+<script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(async () => {
+    const resp = await fetch('/api/runs/{{ run.id }}/equity-curve/', {credentials: 'include'});
+    if (!resp.ok) {
+        document.getElementById('equity-chart').innerHTML =
+            '<p style="color:#94a3c4;padding:24px;font-family:Inter;">No equity data yet.</p>';
+        return;
+    }
+    const rows = await resp.json();
+    if (rows.length === 0) {
+        document.getElementById('equity-chart').innerHTML =
+            '<p style="color:#94a3c4;padding:24px;font-family:Inter;">No equity data yet.</p>';
+        return;
+    }
+
+    const chart = LightweightCharts.createChart(
+        document.getElementById('equity-chart'),
+        {
+            layout:    { background: { color: '#0b1224' }, textColor: '#c7d2fe' },
+            grid:      { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+            rightPriceScale: { borderColor: '#334155' },
+            timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+            crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            autoSize:  true,
+        }
+    );
+
+    const equity = chart.addSeries(LightweightCharts.LineSeries, {
+        color: '#60a5fa',
+        lineWidth: 2,
+        priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+    });
+
+    equity.setData(rows.map(r => ({
+        time:  Math.floor(new Date(r.ts).getTime() / 1000),
+        value: parseFloat(r.equity),
+    })));
+
+    chart.timeScale().fitContent();
+})();
+</script>
+{% endblock %}

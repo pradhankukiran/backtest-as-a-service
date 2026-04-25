@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Runs &middot; Backtester{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:32px;">
+    <h1>Backtest runs</h1>
+    <p class="lead">{{ runs|length }} run{{ runs|length|pluralize }} stored.</p>
+</header>
+
+{% if runs %}
+<table>
+    <thead>
+        <tr>
+            <th class="num">#</th>
+            <th>Strategy</th>
+            <th>Symbols</th>
+            <th>Range</th>
+            <th>Status</th>
+            <th class="num">Return</th>
+            <th class="num">Sharpe</th>
+            <th class="num">Trades</th>
+            <th class="num">Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for run in runs %}
+        <tr style="cursor:pointer;" onclick="window.location='{% url 'run-detail' run.id %}'">
+            <td class="num mono">{{ run.id }}</td>
+            <td><a href="{% url 'run-detail' run.id %}">{{ run.strategy.name }}</a></td>
+            <td>{% for s in run.symbols.all %}<span class="mono">{{ s.ticker }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+            <td class="mono">{{ run.start_date }} &rarr; {{ run.end_date }}</td>
+            <td>
+                {% if run.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ run.status }}</span>
+                {% elif run.status == 'failed' or run.status == 'cancelled' %}<span class="pill bad"><span class="dot"></span>{{ run.status }}</span>
+                {% elif run.status == 'running' %}<span class="pill warn"><span class="dot"></span>{{ run.status }}</span>
+                {% else %}<span class="pill idle"><span class="dot"></span>{{ run.status }}</span>{% endif %}
+            </td>
+            <td class="num {% if run.metrics.return_pct and run.metrics.return_pct > 0 %}pos{% elif run.metrics.return_pct and run.metrics.return_pct < 0 %}neg{% endif %}">
+                {% if run.metrics.return_pct %}{{ run.metrics.return_pct|floatformat:2 }}%{% else %}—{% endif %}
+            </td>
+            <td class="num">{% if run.metrics.sharpe_ratio %}{{ run.metrics.sharpe_ratio|floatformat:2 }}{% else %}—{% endif %}</td>
+            <td class="num">{% if run.metrics.trade_count %}{{ run.metrics.trade_count }}{% else %}—{% endif %}</td>
+            <td class="num">{% if run.duration_ms %}{{ run.duration_ms }}ms{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color:var(--muted);">No runs yet. Create one via the admin or POST <span class="mono">/api/runs/</span>.</p>
+{% endif %}
+{% endblock %}
