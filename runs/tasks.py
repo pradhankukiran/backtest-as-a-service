@@ -17,7 +17,13 @@ from .sweeps import grid_size, iter_combos, merge_params
 log = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name="runs.run_backtest")
+@shared_task(
+    bind=True,
+    name="runs.run_backtest",
+    queue="untrusted",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def run_backtest(self, run_id: int) -> dict:
     """Execute one BacktestRun end-to-end. Updates the run row in place.
 
