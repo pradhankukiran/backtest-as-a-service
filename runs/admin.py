@@ -86,6 +86,7 @@ class BacktestRunAdmin(ModelAdmin):
         "initial_capital",
         "duration_ms",
         "created_at",
+        "open_link",
     )
     list_filter = ("status", "strategy", "timeframe")
     search_fields = ("strategy__name", "strategy__slug")
@@ -94,6 +95,17 @@ class BacktestRunAdmin(ModelAdmin):
     filter_horizontal = ("symbols",)
     readonly_fields = ("started_at", "finished_at", "duration_ms", "error", "created_at", "updated_at")
     inlines = [TradeInline]
+    view_on_site = True
+
+    @admin.display(description="View")
+    def open_link(self, obj):
+        from django.utils.html import format_html
+
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener" '
+            'style="text-decoration:none;font-weight:600;">↗ open</a>',
+            obj.get_absolute_url(),
+        )
 
 
 @admin.register(Trade)
@@ -146,10 +158,22 @@ class ParameterSweepAdmin(ModelAdmin):
         "children_failed",
         "duration_ms",
         "created_at",
+        "open_link",
     )
     list_filter = ("status", "strategy")
     raw_id_fields = ("strategy", "created_by")
     filter_horizontal = ("symbols",)
+    view_on_site = True
+
+    @admin.display(description="View")
+    def open_link(self, obj):
+        from django.utils.html import format_html
+
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener" '
+            'style="text-decoration:none;font-weight:600;">↗ compare</a>',
+            obj.get_absolute_url(),
+        )
     readonly_fields = (
         "started_at",
         "finished_at",

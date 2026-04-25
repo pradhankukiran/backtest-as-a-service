@@ -79,6 +79,11 @@ class ParameterSweep(TimestampedModel):
     def __str__(self) -> str:
         return f"Sweep #{self.id} {self.strategy.name} ({self.status})"
 
+    def get_absolute_url(self) -> str:
+        from django.urls import reverse
+
+        return reverse("sweep-detail", args=[self.id])
+
 
 class BacktestRun(TimestampedModel):
     class Status(models.TextChoices):
@@ -130,6 +135,11 @@ class BacktestRun(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.strategy.name} #{self.id} ({self.status})"
+
+    def get_absolute_url(self) -> str:
+        from django.urls import reverse
+
+        return reverse("run-detail", args=[self.id])
 
 
 class Trade(models.Model):

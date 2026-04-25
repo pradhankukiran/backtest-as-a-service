@@ -152,7 +152,7 @@ UNFOLD = {
     "SITE_TITLE": "Backtester",
     "SITE_HEADER": "Backtester",
     "SHOW_HISTORY": True,
-    "SHOW_VIEW_ON_SITE": False,
+    "SHOW_VIEW_ON_SITE": True,
     "THEME": "light",
     "STYLES": [
         lambda request: static("runs/admin-overrides.css"),
