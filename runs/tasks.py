@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from celery import chord, shared_task
 from django.db import transaction
@@ -194,4 +194,39 @@ def finalize_sweep(child_results: list, sweep_id: int) -> dict:
         "status": sweep.status,
         "succeeded": succeeded,
         "failed": failed,
+    }
+
+
+@shared_task(name="runs.cleanup_stale_runs")
+def cleanup_stale_runs(older_than_days: int = 90) -> dict:
+    """Drop equity points and trades for old SUCCEEDED runs to keep the DB lean.
+
+    The BacktestRun and RunMetrics rows are kept (they're small) so historical
+    summaries still render; only the per-bar artefacts are pruned.
+    """
+    from .models import EquityPoint, Trade
+
+    cutoff = djtz.now() - timedelta(days=older_than_days)
+    stale_run_ids = list(
+        BacktestRun.objects.filter(
+            status=BacktestRun.Status.SUCCEEDED,
+            finished_at__lt=cutoff,
+        ).values_list("id", flat=True)
+    )
+    if not stale_run_ids:
+        return {"runs_pruned": 0, "equity_points_deleted": 0, "trades_deleted": 0}
+
+    eq_deleted, _ = EquityPoint.objects.filter(run_id__in=stale_run_ids).delete()
+    tr_deleted, _ = Trade.objects.filter(run_id__in=stale_run_ids).delete()
+
+    log.info(
+        "cleanup_stale_runs pruned %d run(s); deleted %d equity point(s), %d trade(s)",
+        len(stale_run_ids),
+        eq_deleted,
+        tr_deleted,
+    )
+    return {
+        "runs_pruned": len(stale_run_ids),
+        "equity_points_deleted": eq_deleted,
+        "trades_deleted": tr_deleted,
     }
