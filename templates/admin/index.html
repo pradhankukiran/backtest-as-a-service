@@ -1,0 +1,285 @@
+{% extends 'admin/base.html' %}
+{% load i18n %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block branding %}
+    {% include "unfold/helpers/site_branding.html" %}
+{% endblock %}
+
+{% block content %}
+<section class="bt-dashboard">
+    <div class="bt-tiles">
+        <div class="bt-tile"><div class="bt-tile-label">Backtest runs</div><div class="bt-tile-value">{{ bt_counts.runs }}</div></div>
+        <div class="bt-tile"><div class="bt-tile-label">Sweeps</div><div class="bt-tile-value">{{ bt_counts.sweeps }}</div></div>
+        <div class="bt-tile"><div class="bt-tile-label">Strategies</div><div class="bt-tile-value">{{ bt_counts.strategies }}</div></div>
+        <div class="bt-tile"><div class="bt-tile-label">Symbols</div><div class="bt-tile-value">{{ bt_counts.symbols }}</div></div>
+        <div class="bt-tile"><div class="bt-tile-label">Bars stored</div><div class="bt-tile-value">{{ bt_counts.bars }}</div></div>
+    </div>
+
+    {% if bt_counts.runs > 0 %}
+    <div class="bt-row">
+        <div class="bt-card">
+            <div class="bt-card-label">Latest run</div>
+            {% if bt_latest_run %}
+            <a href="{% url 'admin:runs_backtestrun_change' bt_latest_run.id %}" class="bt-card-link">
+                <div class="bt-card-title">{{ bt_latest_run.strategy.name }} <span class="bt-mono">#{{ bt_latest_run.id }}</span></div>
+                <div class="bt-card-status">
+                    {% if bt_latest_run.status == 'succeeded' %}<span class="bt-pill bt-ok">{{ bt_latest_run.status }}</span>
+                    {% elif bt_latest_run.status == 'failed' %}<span class="bt-pill bt-bad">{{ bt_latest_run.status }}</span>
+                    {% elif bt_latest_run.status == 'running' %}<span class="bt-pill bt-warn">{{ bt_latest_run.status }}</span>
+                    {% else %}<span class="bt-pill bt-idle">{{ bt_latest_run.status }}</span>{% endif %}
+                </div>
+                {% if bt_sparkline %}
+                <div id="bt-sparkline" data-points="{{ bt_sparkline }}" class="bt-sparkline"></div>
+                {% endif %}
+                {% if bt_latest_run.metrics %}
+                <div class="bt-card-grid">
+                    <div><span class="bt-card-grid-label">Return</span><span class="bt-card-grid-value bt-{% if bt_latest_run.metrics.return_pct > 0 %}pos{% elif bt_latest_run.metrics.return_pct < 0 %}neg{% endif %}">{{ bt_latest_run.metrics.return_pct|floatformat:2 }}%</span></div>
+                    <div><span class="bt-card-grid-label">Sharpe</span><span class="bt-card-grid-value">{{ bt_latest_run.metrics.sharpe_ratio|floatformat:2 }}</span></div>
+                    <div><span class="bt-card-grid-label">Max DD</span><span class="bt-card-grid-value bt-neg">{{ bt_latest_run.metrics.max_drawdown_pct|floatformat:2 }}%</span></div>
+                    <div><span class="bt-card-grid-label">Trades</span><span class="bt-card-grid-value">{{ bt_latest_run.metrics.trade_count }}</span></div>
+                </div>
+                {% endif %}
+            </a>
+            {% else %}
+            <p class="bt-empty">No runs yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="bt-card">
+            <div class="bt-card-label">Top by Sharpe ratio</div>
+            {% if bt_top_runs %}
+            <ul class="bt-leaderboard">
+                {% for run in bt_top_runs %}
+                <li>
+                    <a href="{% url 'admin:runs_backtestrun_change' run.id %}">
+                        <div class="bt-leaderboard-name">{{ run.strategy.name }} <span class="bt-mono">#{{ run.id }}</span></div>
+                        <div class="bt-leaderboard-meta">
+                            <span class="bt-card-grid-label">Sharpe</span>
+                            <span class="bt-leaderboard-sharpe">{{ run.metrics.sharpe_ratio|floatformat:2 }}</span>
+                            <span class="bt-card-grid-label">Return</span>
+                            <span class="bt-{% if run.metrics.return_pct > 0 %}pos{% elif run.metrics.return_pct < 0 %}neg{% endif %}">{{ run.metrics.return_pct|floatformat:2 }}%</span>
+                        </div>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="bt-empty">No succeeded runs yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if bt_latest_sweep %}
+    <div class="bt-card bt-card-wide">
+        <div class="bt-card-label">Latest sweep</div>
+        <a href="{% url 'admin:runs_parametersweep_change' bt_latest_sweep.id %}" class="bt-card-link bt-card-link-row">
+            <div>
+                <div class="bt-card-title">{{ bt_latest_sweep.strategy.name }} <span class="bt-mono">#{{ bt_latest_sweep.id }}</span></div>
+                <div class="bt-mono bt-muted">{% for s in bt_latest_sweep.symbols.all %}{{ s.ticker }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+            </div>
+            <div class="bt-sweep-status">
+                {% if bt_latest_sweep.status == 'succeeded' %}<span class="bt-pill bt-ok">{{ bt_latest_sweep.status }}</span>
+                {% elif bt_latest_sweep.status == 'partial' %}<span class="bt-pill bt-warn">{{ bt_latest_sweep.status }}</span>
+                {% elif bt_latest_sweep.status == 'failed' %}<span class="bt-pill bt-bad">{{ bt_latest_sweep.status }}</span>
+                {% else %}<span class="bt-pill bt-idle">{{ bt_latest_sweep.status }}</span>{% endif %}
+                <span class="bt-mono bt-muted">{{ bt_latest_sweep.children_succeeded }}/{{ bt_latest_sweep.children_total }} runs</span>
+            </div>
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="bt-card bt-card-wide">
+        <div class="bt-card-label">Recent runs</div>
+        <table class="bt-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Strategy</th>
+                    <th>Symbols</th>
+                    <th>Status</th>
+                    <th class="bt-num">Return</th>
+                    <th class="bt-num">Sharpe</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for run in bt_recent_runs %}
+                <tr onclick="window.location='{% url 'admin:runs_backtestrun_change' run.id %}'">
+                    <td class="bt-mono">{{ run.id }}</td>
+                    <td>{{ run.strategy.name }}</td>
+                    <td class="bt-mono">{% for s in run.symbols.all %}{{ s.ticker }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+                    <td>
+                        {% if run.status == 'succeeded' %}<span class="bt-pill bt-ok">{{ run.status }}</span>
+                        {% elif run.status == 'failed' %}<span class="bt-pill bt-bad">{{ run.status }}</span>
+                        {% elif run.status == 'running' %}<span class="bt-pill bt-warn">{{ run.status }}</span>
+                        {% else %}<span class="bt-pill bt-idle">{{ run.status }}</span>{% endif %}
+                    </td>
+                    <td class="bt-num bt-{% if run.metrics.return_pct and run.metrics.return_pct > 0 %}pos{% elif run.metrics.return_pct and run.metrics.return_pct < 0 %}neg{% endif %}">{% if run.metrics.return_pct is not None %}{{ run.metrics.return_pct|floatformat:2 }}%{% else %}—{% endif %}</td>
+                    <td class="bt-num">{% if run.metrics.sharpe_ratio is not None %}{{ run.metrics.sharpe_ratio|floatformat:2 }}{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+
+<style>
+    .bt-dashboard { margin-bottom: 32px; }
+    .bt-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1px;
+        background: var(--color-base-200, #e5e7eb);
+        border: 1px solid var(--color-base-200, #e5e7eb);
+        margin-bottom: 24px;
+    }
+    .bt-tile { background: white; padding: 14px 18px; }
+    .bt-tile-label {
+        font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+        text-transform: uppercase; color: #6b7280; margin-bottom: 4px;
+    }
+    .bt-tile-value {
+        font-size: 22px; font-weight: 700; color: #064e3b;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .bt-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    .bt-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        padding: 18px 22px;
+    }
+    .bt-card-wide { margin-bottom: 16px; }
+    .bt-card-label {
+        font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+        text-transform: uppercase; color: #6b7280; margin-bottom: 12px;
+    }
+    .bt-card-link { display: block; text-decoration: none; color: inherit; }
+    .bt-card-link-row {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; flex-wrap: wrap;
+    }
+    .bt-card-title {
+        font-size: 16px; font-weight: 700; color: #111827; margin-bottom: 4px;
+    }
+    .bt-card-status { margin-bottom: 8px; }
+    .bt-mono {
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 400; color: #6b7280;
+    }
+    .bt-muted { color: #6b7280; font-size: 12px; }
+
+    .bt-sparkline { height: 80px; margin: 12px 0; }
+
+    .bt-card-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        font-size: 12px;
+    }
+    .bt-card-grid-label {
+        display: block;
+        font-size: 10px; text-transform: uppercase;
+        letter-spacing: 0.05em; color: #6b7280;
+        margin-bottom: 2px; margin-right: 4px;
+    }
+    .bt-card-grid-value { font-weight: 600; }
+
+    .bt-pill {
+        display: inline-block;
+        font-size: 10px; font-weight: 600;
+        letter-spacing: 0.04em; text-transform: uppercase;
+        padding: 3px 8px; border: 1px solid;
+    }
+    .bt-pill.bt-ok   { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+    .bt-pill.bt-bad  { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+    .bt-pill.bt-warn { color: #d97706; border-color: #fde68a; background: #fffbeb; }
+    .bt-pill.bt-idle { color: #64748b; border-color: #e5e7eb; background: #f1f5f9; }
+    .bt-pos { color: #16a34a; }
+    .bt-neg { color: #dc2626; }
+
+    .bt-leaderboard { list-style: none; padding: 0; margin: 0; }
+    .bt-leaderboard li { border-bottom: 1px solid #e5e7eb; }
+    .bt-leaderboard li:last-child { border-bottom: none; }
+    .bt-leaderboard a {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 10px 0; gap: 12px; color: inherit; text-decoration: none;
+        font-size: 13px;
+    }
+    .bt-leaderboard-name { font-weight: 600; color: #111827; }
+    .bt-leaderboard-meta { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+    .bt-leaderboard-sharpe { font-weight: 700; color: #047857; font-variant-numeric: tabular-nums; margin-right: 8px; }
+
+    .bt-sweep-status { display: flex; gap: 12px; align-items: center; }
+
+    .bt-table {
+        width: 100%; border-collapse: collapse;
+        font-size: 13px;
+    }
+    .bt-table thead th {
+        font-size: 10px; font-weight: 600;
+        letter-spacing: 0.06em; text-transform: uppercase;
+        color: #6b7280; text-align: left;
+        padding: 8px 12px; border-bottom: 1px solid #e5e7eb;
+    }
+    .bt-table tbody td {
+        padding: 10px 12px; border-bottom: 1px solid #e5e7eb;
+    }
+    .bt-table tbody tr { cursor: pointer; transition: background 0.1s ease; }
+    .bt-table tbody tr:hover { background: #ecfdf5; }
+    .bt-table tbody tr:last-child td { border-bottom: none; }
+    .bt-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .bt-empty { color: #6b7280; font-size: 13px; }
+</style>
+
+<script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(() => {
+    const el = document.getElementById('bt-sparkline');
+    if (!el) return;
+    const raw = el.dataset.points;
+    if (!raw) return;
+    const values = raw.split(',').map(parseFloat).filter(v => !Number.isNaN(v));
+    if (values.length < 2) { el.style.display = 'none'; return; }
+
+    const chart = LightweightCharts.createChart(el, {
+        layout:    { background: { color: 'transparent' }, textColor: '#4a5b54' },
+        grid:      { vertLines: { visible: false }, horzLines: { visible: false } },
+        rightPriceScale: { visible: false },
+        leftPriceScale:  { visible: false },
+        timeScale: { visible: false },
+        crosshair: { horzLine: { visible: false }, vertLine: { visible: false } },
+        handleScroll: false,
+        handleScale: false,
+        autoSize: true,
+    });
+
+    const series = chart.addSeries(LightweightCharts.AreaSeries, {
+        topColor:    'rgba(5, 150, 105, 0.30)',
+        bottomColor: 'rgba(5, 150, 105, 0.02)',
+        lineColor:   '#059669',
+        lineWidth:   2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+    });
+    series.setData(values.map((v, i) => ({ time: i + 1, value: v })));
+    chart.timeScale().fitContent();
+})();
+</script>
+
+<div class="flex flex-col lg:flex-row lg:gap-8">
+    <div class="grow">
+        {% include "unfold/helpers/app_list_default.html" %}
+    </div>
+
+    {% include "unfold/helpers/history.html" %}
+</div>
+{% endblock %}

@@ -155,6 +155,7 @@ UNFOLD = {
     "SHOW_VIEW_ON_SITE": True,
     "SITE_ICON": lambda request: static("runs/favicon.svg"),
     "THEME": "light",
+    "DASHBOARD_CALLBACK": "backtester.admin_dashboard.dashboard_callback",
     "STYLES": [
         lambda request: static("runs/admin-overrides.css"),
     ],
