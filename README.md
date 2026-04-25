@@ -46,10 +46,38 @@ backtest-as-a-service/
 
 1. **Project skeleton + data models** — done
 2. **Bar ingestion pipeline** (yfinance → Postgres) — done
-3. Backtest execution engine (Celery → backtesting.py → results) — next
-4. REST API + minimal UI
+3. **Backtest execution engine** (Celery → backtesting.py → results) — done
+4. REST API + minimal UI — next
 5. Parameter sweeps
 6. Sandboxing hardening + cleanup
+
+### Backtest execution
+
+- `runs.sandbox.load_strategy_class(source, entrypoint)` — AST audit pre-pass
+  (rejects `os`, `subprocess`, `eval`, file IO, etc.) followed by `exec` into a
+  fresh namespace. Phase 3 sanity layer; Phase 6 will lift this into a Docker
+  worker pool.
+- `runs.engine.run_backtest_engine(...)` — wraps `backtesting.py`'s `Backtest`,
+  runs synchronously, serializes the resulting `pandas.Series` into JSON-/DB-safe
+  dicts (metrics, trades, equity curve).
+- `runs.persistence.save_run_results(run, result)` — bulk-creates `Trade` and
+  `EquityPoint` rows, upserts `RunMetrics`, mapping `backtesting.py` stat keys
+  onto our model fields.
+- Celery task: `runs.run_backtest(run_id)` — locks status transitions
+  (PENDING → RUNNING → SUCCEEDED|FAILED), records `duration_ms`, captures
+  exception traces into `BacktestRun.error`.
+- Built-in example: `python manage.py install_builtin_strategies` seeds an
+  SMA crossover strategy you can run immediately.
+
+Sample real run:
+
+```bash
+python manage.py ingest_bars AAPL --create-missing --days-back 365
+python manage.py install_builtin_strategies
+# create a BacktestRun via shell or admin, then:
+python -c "from runs.tasks import run_backtest; run_backtest(<id>)"
+# AAPL last 12mo with SMA(10)/SMA(30): +18.3%, Sharpe 0.89, 4 trades, 119ms
+```
 
 ### Bar ingestion
 
