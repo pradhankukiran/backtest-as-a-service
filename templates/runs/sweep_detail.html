@@ -6,7 +6,13 @@
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
         <a href="{% url 'sweeps-page' %}">Sweeps</a> &nbsp;/&nbsp; <span class="mono">#{{ sweep.id }}</span>
     </div>
-    <h1 style="margin-bottom:12px;">{{ sweep.strategy.name }} sweep</h1>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:12px;">
+        <h1 style="margin:0;">{{ sweep.strategy.name }} sweep</h1>
+        <form method="post" action="{% url 'sweep-rerun' sweep.id %}" style="margin:0;">
+            {% csrf_token %}
+            <button type="submit" class="btn">↻ Re-run sweep</button>
+        </form>
+    </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         {% if sweep.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ sweep.status }}</span>
         {% elif sweep.status == 'partial' %}<span class="pill warn"><span class="dot"></span>{{ sweep.status }}</span>

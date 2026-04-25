@@ -4,9 +4,22 @@
 {% block content %}
 <header style="margin-bottom:32px;">
     <div style="font-size:13px;color:var(--muted);margin-bottom:8px;">
-        <a href="{% url 'runs-page' %}">Runs</a> &nbsp;/&nbsp; <span class="mono">#{{ run.id }}</span>
+        {% if run.sweep %}
+            <a href="{% url 'sweeps-page' %}">Sweeps</a> &nbsp;/&nbsp;
+            <a href="{% url 'sweep-detail' run.sweep.id %}">Sweep #{{ run.sweep.id }}</a>
+            &nbsp;/&nbsp;
+            <span class="mono">Run #{{ run.id }}</span>
+        {% else %}
+            <a href="{% url 'runs-page' %}">Runs</a> &nbsp;/&nbsp; <span class="mono">#{{ run.id }}</span>
+        {% endif %}
     </div>
-    <h1 style="margin-bottom:12px;">{{ run.strategy.name }}</h1>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:12px;">
+        <h1 style="margin:0;">{{ run.strategy.name }}</h1>
+        <form method="post" action="{% url 'run-rerun' run.id %}" style="margin:0;">
+            {% csrf_token %}
+            <button type="submit" class="btn">↻ Run again</button>
+        </form>
+    </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         {% if run.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ run.status }}</span>
         {% elif run.status == 'failed' or run.status == 'cancelled' %}<span class="pill bad"><span class="dot"></span>{{ run.status }}</span>

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, render
-from django.views.decorators.http import require_GET
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET, require_POST
 
 from .models import BacktestRun, ParameterSweep, Trade
+from .tasks import optimize, run_backtest
 
 
 @require_GET
@@ -24,13 +26,24 @@ def runs_list(request):
 @login_required
 def run_detail(request, run_id: int):
     run = get_object_or_404(
-        BacktestRun.objects.select_related("strategy", "metrics").prefetch_related("symbols"),
+        BacktestRun.objects.select_related("strategy", "metrics", "sweep").prefetch_related(
+            "symbols"
+        ),
         id=run_id,
     )
     trades = list(
         Trade.objects.filter(run=run).select_related("symbol").order_by("entry_ts")[:500]
     )
     return render(request, "runs/detail.html", {"run": run, "trades": trades})
+
+
+@require_POST
+@login_required
+def rerun_run(request, run_id: int):
+    run = get_object_or_404(BacktestRun, id=run_id)
+    run_backtest.delay(run.id)
+    messages.success(request, f"Re-queued run #{run.id}")
+    return redirect("run-detail", run_id=run.id)
 
 
 @require_GET
@@ -82,3 +95,12 @@ def sweep_detail(request, sweep_id: int):
         rows[best_idx]["is_best"] = True
 
     return render(request, "runs/sweep_detail.html", {"sweep": sweep, "rows": rows})
+
+
+@require_POST
+@login_required
+def rerun_sweep(request, sweep_id: int):
+    sweep = get_object_or_404(ParameterSweep, id=sweep_id)
+    optimize.delay(sweep.id)
+    messages.success(request, f"Re-queued sweep #{sweep.id} ({sweep.children_total} child runs)")
+    return redirect("sweep-detail", sweep_id=sweep.id)
