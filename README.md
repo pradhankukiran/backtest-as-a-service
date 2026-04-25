@@ -47,9 +47,38 @@ backtest-as-a-service/
 1. **Project skeleton + data models** — done
 2. **Bar ingestion pipeline** (yfinance → Postgres) — done
 3. **Backtest execution engine** (Celery → backtesting.py → results) — done
-4. REST API + minimal UI — next
-5. Parameter sweeps
+4. **REST API + minimal UI** — done
+5. Parameter sweeps — next
 6. Sandboxing hardening + cleanup
+
+### REST API + UI
+
+REST endpoints (under `/api/`):
+
+| Endpoint | Verbs | Notes |
+|---|---|---|
+| `/api/symbols/` | GET, POST | Manage tradable symbols |
+| `/api/bars/` | GET (read-only) | Browse stored OHLCV bars |
+| `/api/strategies/` | GET, POST, PATCH, DELETE | Strategy CRUD; lookup by `slug` |
+| `/api/runs/` | GET, **POST** | POST creates a run AND queues `run_backtest` immediately (returns 202) |
+| `/api/runs/<id>/` | GET, PATCH, DELETE | Run detail with embedded metrics |
+| `/api/runs/<id>/equity-curve/` | GET | Equity points; powers the chart |
+| `/api/runs/<id>/trades/` | GET | All trades for a run |
+| `/api/runs/<id>/rerun/` | POST | Re-queue an existing run |
+
+UI:
+
+| URL | Page |
+|---|---|
+| `/` | Landing — links to admin / API / runs |
+| `/runs/` | Run list with status pills and inline metrics |
+| `/runs/<id>/` | Run detail: metrics grid + equity curve (TradingView Lightweight Charts v5) + trade table |
+| `/admin/` | Django admin |
+| `/api/docs/` | Swagger UI |
+
+The equity curve is rendered client-side from `/api/runs/<id>/equity-curve/` so
+adding a drawdown overlay or a benchmark comparison later is just adding a
+second series.
 
 ### Backtest execution
 
