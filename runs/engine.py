@@ -91,15 +91,23 @@ def load_bars_dataframe(
 
 
 def _coerce(value: Any) -> Any:
-    """Convert values into JSON-/DB-safe primitives. NaN/Inf -> None."""
+    """Convert values into JSON-/DB-safe primitives. NaN/NaT/Inf -> None."""
     if value is None:
         return None
+    # pd.isna handles float NaN, pd.NaT, numpy NaN/NaT in one call. Wrap in
+    # try/except because it raises on non-scalar / unhashable inputs.
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
     if isinstance(value, float):
         return value if math.isfinite(value) else None
-    if hasattr(value, "total_seconds"):  # pd.Timedelta
-        return value.total_seconds() / 86400  # report as days
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime().isoformat()
+    if hasattr(value, "total_seconds"):  # pd.Timedelta -> days
+        seconds = value.total_seconds()
+        return seconds / 86400 if math.isfinite(seconds) else None
     if hasattr(value, "item"):  # numpy scalars
         return _coerce(value.item())
     return value
@@ -152,20 +160,12 @@ def _serialize_equity(stats: pd.Series) -> list[dict]:
 
     out: list[dict] = []
     for ts, row in eq_df.iterrows():
-        ts = pd.Timestamp(ts)
-        dd_dur = row.get("DrawdownDuration")
-        if hasattr(dd_dur, "total_seconds"):
-            dd_dur_days = dd_dur.total_seconds() / 86400
-        else:
-            dd_dur_days = None
-        equity = float(row["Equity"])
-        drawdown = float(row["DrawdownPct"]) if pd.notna(row.get("DrawdownPct")) else None
         out.append(
             {
-                "ts": _aware_utc(ts),
-                "equity": equity,
-                "drawdown_pct": drawdown,
-                "drawdown_duration_days": dd_dur_days,
+                "ts": _aware_utc(pd.Timestamp(ts)),
+                "equity": float(row["Equity"]),
+                "drawdown_pct": _coerce(row.get("DrawdownPct")),
+                "drawdown_duration_days": _coerce(row.get("DrawdownDuration")),
             }
         )
     return out
