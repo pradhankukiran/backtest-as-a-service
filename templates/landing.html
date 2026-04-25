@@ -2,48 +2,34 @@
 {% block title %}Backtester{% endblock %}
 
 {% block content %}
-<header style="margin-bottom:48px;">
-    <h1>Backtester</h1>
-    <p class="lead">
-        Self-hosted Django + Postgres + Celery service that runs Python trading
-        strategies against historical OHLCV bars. Backtests run as background
-        jobs; results land in a queryable, replayable history.
-    </p>
+<header style="margin-bottom:32px;">
+    <h1>Dashboard</h1>
+    <p class="lead">Overview of your backtesting workspace.</p>
 </header>
 
-<section>
-    <h2>Console</h2>
-    <div class="metrics">
-        <a href="{% url 'runs-page' %}" class="metric" style="text-decoration:none;color:inherit;">
-            <div class="label">Backtest Runs</div>
-            <div class="value" style="font-size:16px;font-weight:600;">Browse history &rarr;</div>
-        </a>
-        <a href="/admin/runs/strategy/" class="metric" style="text-decoration:none;color:inherit;">
-            <div class="label">Strategies</div>
-            <div class="value" style="font-size:16px;font-weight:600;">Manage &rarr;</div>
-        </a>
-        <a href="/admin/bars/symbol/" class="metric" style="text-decoration:none;color:inherit;">
-            <div class="label">Symbols</div>
-            <div class="value" style="font-size:16px;font-weight:600;">Configure &rarr;</div>
-        </a>
-        <a href="/api/docs/" class="metric" style="text-decoration:none;color:inherit;">
-            <div class="label">REST API</div>
-            <div class="value" style="font-size:16px;font-weight:600;">Swagger &rarr;</div>
-        </a>
+<section style="margin-bottom:40px;">
+    <div class="metrics" style="grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));">
+        <div class="metric"><div class="label">Backtest runs</div><div class="value">{{ counts.runs }}</div></div>
+        <div class="metric"><div class="label">Sweeps</div><div class="value">{{ counts.sweeps }}</div></div>
+        <div class="metric"><div class="label">Strategies</div><div class="value">{{ counts.strategies }}</div></div>
+        <div class="metric"><div class="label">Symbols</div><div class="value">{{ counts.symbols }}</div></div>
+        <div class="metric"><div class="label">Bars stored</div><div class="value">{{ counts.bars }}</div></div>
     </div>
 </section>
 
+{% if counts.runs == 0 %}
 <section>
-    <h2>Submit a backtest from the shell</h2>
-    <div class="mono" style="background:var(--emerald-darker);color:#d1fae5;padding:20px 24px;font-size:13px;line-height:1.7;overflow-x:auto;border-left:3px solid var(--emerald);"><span style="color:#6ee7b7;"># 1. ingest bars for a symbol</span>
-python manage.py ingest_bars AAPL --create-missing --days-back 365
+    <h2>Get started</h2>
+    <div class="mono" style="background:var(--emerald-darker);color:#d1fae5;padding:20px 24px;font-size:13px;line-height:1.7;overflow-x:auto;border-left:3px solid var(--emerald);"><span style="color:#6ee7b7;"># 1. seed the SMA crossover example strategy</span>
+docker compose exec web python manage.py install_builtin_strategies
 
-<span style="color:#6ee7b7;"># 2. install the built-in SMA crossover strategy</span>
-python manage.py install_builtin_strategies
+<span style="color:#6ee7b7;"># 2. ingest a year of AAPL bars</span>
+docker compose exec web python manage.py ingest_bars AAPL --create-missing --days-back 365
 
-<span style="color:#6ee7b7;"># 3. POST a run via the REST API (or use the admin)</span>
-curl -X POST http://localhost:8000/api/runs/ \
+<span style="color:#6ee7b7;"># 3. POST a run via the REST API (uses your session cookie)</span>
+curl -b cookies.txt -X POST http://localhost:8000/api/runs/ \
   -H 'Content-Type: application/json' \
+  -H "X-CSRFToken: $CSRF" \
   -d '{
     "strategy": "sma-crossover",
     "symbols": ["AAPL"],
@@ -54,4 +40,150 @@ curl -X POST http://localhost:8000/api/runs/ \
     "params": {"sma_short": 10, "sma_long": 30}
   }'</div>
 </section>
+{% else %}
+
+<section style="display:grid;grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));gap:32px;margin-bottom:40px;">
+    <div>
+        <h2>Latest run</h2>
+        {% if latest_run %}
+        <a href="{% url 'run-detail' latest_run.id %}" style="display:block;background:white;border:1px solid var(--line);padding:20px 24px;text-decoration:none;color:inherit;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px;">
+                <div>
+                    <div style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Run #{{ latest_run.id }}</div>
+                    <div style="font-size:18px;font-weight:700;color:var(--ink);">{{ latest_run.strategy.name }}</div>
+                </div>
+                {% if latest_run.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ latest_run.status }}</span>
+                {% elif latest_run.status == 'failed' %}<span class="pill bad"><span class="dot"></span>{{ latest_run.status }}</span>
+                {% elif latest_run.status == 'running' %}<span class="pill warn"><span class="dot"></span>{{ latest_run.status }}</span>
+                {% else %}<span class="pill idle"><span class="dot"></span>{{ latest_run.status }}</span>{% endif %}
+            </div>
+            {% if sparkline %}
+            <div id="latest-sparkline" data-points="{{ sparkline|join:',' }}" style="height:80px;margin:12px 0;"></div>
+            {% endif %}
+            {% if latest_run.metrics %}
+            <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;font-size:12px;">
+                <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Return</div><div style="font-weight:600;{% if latest_run.metrics.return_pct > 0 %}color:var(--green);{% elif latest_run.metrics.return_pct < 0 %}color:var(--red);{% endif %}">{{ latest_run.metrics.return_pct|floatformat:2 }}%</div></div>
+                <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Sharpe</div><div style="font-weight:600;">{{ latest_run.metrics.sharpe_ratio|floatformat:2 }}</div></div>
+                <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Max DD</div><div style="font-weight:600;color:var(--red);">{{ latest_run.metrics.max_drawdown_pct|floatformat:2 }}%</div></div>
+                <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Trades</div><div style="font-weight:600;">{{ latest_run.metrics.trade_count }}</div></div>
+            </div>
+            {% endif %}
+        </a>
+        {% endif %}
+    </div>
+
+    <div>
+        <h2>Top by Sharpe ratio</h2>
+        {% if top_runs %}
+        <div style="background:white;border:1px solid var(--line);">
+            {% for run in top_runs %}
+            <a href="{% url 'run-detail' run.id %}" style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 20px;text-decoration:none;color:inherit;border-bottom:1px solid var(--line);">
+                <div style="min-width:0;flex:1;">
+                    <div style="font-size:14px;font-weight:600;color:var(--ink);">{{ run.strategy.name }} <span class="mono" style="color:var(--muted);font-weight:400;">#{{ run.id }}</span></div>
+                    <div class="mono" style="font-size:11px;color:var(--muted);margin-top:2px;">{{ run.params }}</div>
+                </div>
+                <div style="display:flex;gap:16px;font-size:12px;font-variant-numeric:tabular-nums;">
+                    <div style="text-align:right;"><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Sharpe</div><div style="font-weight:700;color:var(--emerald-dark);">{{ run.metrics.sharpe_ratio|floatformat:2 }}</div></div>
+                    <div style="text-align:right;"><div style="color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;font-size:10px;">Return</div><div style="font-weight:600;{% if run.metrics.return_pct > 0 %}color:var(--green);{% elif run.metrics.return_pct < 0 %}color:var(--red);{% endif %}">{{ run.metrics.return_pct|floatformat:2 }}%</div></div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color:var(--muted);">No succeeded runs yet.</p>
+        {% endif %}
+    </div>
+</section>
+
+{% if latest_sweep %}
+<section style="margin-bottom:40px;">
+    <h2>Latest sweep</h2>
+    <a href="{% url 'sweep-detail' latest_sweep.id %}" style="display:block;background:white;border:1px solid var(--line);padding:20px 24px;text-decoration:none;color:inherit;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+            <div>
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Sweep #{{ latest_sweep.id }}</div>
+                <div style="font-size:16px;font-weight:600;color:var(--ink);">{{ latest_sweep.strategy.name }} &middot; <span class="mono" style="font-weight:400;">{% for s in latest_sweep.symbols.all %}{{ s.ticker }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></div>
+            </div>
+            <div style="display:flex;gap:16px;align-items:center;font-size:13px;">
+                {% if latest_sweep.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ latest_sweep.status }}</span>
+                {% elif latest_sweep.status == 'partial' %}<span class="pill warn"><span class="dot"></span>{{ latest_sweep.status }}</span>
+                {% elif latest_sweep.status == 'failed' %}<span class="pill bad"><span class="dot"></span>{{ latest_sweep.status }}</span>
+                {% else %}<span class="pill idle"><span class="dot"></span>{{ latest_sweep.status }}</span>{% endif %}
+                <span class="mono" style="color:var(--muted);">{{ latest_sweep.children_succeeded }}/{{ latest_sweep.children_total }} runs</span>
+            </div>
+        </div>
+    </a>
+</section>
+{% endif %}
+
+<section>
+    <h2>Recent runs</h2>
+    <table>
+        <thead>
+            <tr>
+                <th class="num">#</th>
+                <th>Strategy</th>
+                <th>Symbols</th>
+                <th>Status</th>
+                <th class="num">Return</th>
+                <th class="num">Sharpe</th>
+                <th class="num">Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in recent_runs %}
+            <tr style="cursor:pointer;" onclick="window.location='{% url 'run-detail' run.id %}'">
+                <td class="num mono">{{ run.id }}</td>
+                <td>{{ run.strategy.name }}</td>
+                <td class="mono" style="font-size:12px;">{% for s in run.symbols.all %}{{ s.ticker }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+                <td>
+                    {% if run.status == 'succeeded' %}<span class="pill ok" style="font-size:10px;padding:2px 8px;"><span class="dot"></span>{{ run.status }}</span>
+                    {% elif run.status == 'failed' %}<span class="pill bad" style="font-size:10px;padding:2px 8px;"><span class="dot"></span>{{ run.status }}</span>
+                    {% elif run.status == 'running' %}<span class="pill warn" style="font-size:10px;padding:2px 8px;"><span class="dot"></span>{{ run.status }}</span>
+                    {% else %}<span class="pill idle" style="font-size:10px;padding:2px 8px;"><span class="dot"></span>{{ run.status }}</span>{% endif %}
+                </td>
+                <td class="num {% if run.metrics.return_pct and run.metrics.return_pct > 0 %}pos{% elif run.metrics.return_pct and run.metrics.return_pct < 0 %}neg{% endif %}">{% if run.metrics.return_pct is not None %}{{ run.metrics.return_pct|floatformat:2 }}%{% else %}—{% endif %}</td>
+                <td class="num">{% if run.metrics.sharpe_ratio is not None %}{{ run.metrics.sharpe_ratio|floatformat:2 }}{% else %}—{% endif %}</td>
+                <td class="mono" style="font-size:12px;color:var(--muted);">{{ run.created_at|date:"Y-m-d H:i" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+(() => {
+    const el = document.getElementById('latest-sparkline');
+    if (!el) return;
+    const raw = el.dataset.points;
+    if (!raw) return;
+    const values = raw.split(',').map(parseFloat).filter(v => !Number.isNaN(v));
+    if (values.length < 2) { el.style.display = 'none'; return; }
+
+    const chart = LightweightCharts.createChart(el, {
+        layout:    { background: { color: 'transparent' }, textColor: '#4a5b54' },
+        grid:      { vertLines: { visible: false }, horzLines: { visible: false } },
+        rightPriceScale: { visible: false },
+        leftPriceScale:  { visible: false },
+        timeScale: { visible: false },
+        crosshair: { horzLine: { visible: false }, vertLine: { visible: false } },
+        handleScroll: false,
+        handleScale: false,
+        autoSize: true,
+    });
+
+    const series = chart.addSeries(LightweightCharts.AreaSeries, {
+        topColor:    'rgba(5, 150, 105, 0.30)',
+        bottomColor: 'rgba(5, 150, 105, 0.02)',
+        lineColor:   '#059669',
+        lineWidth:   2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+    });
+    series.setData(values.map((v, i) => ({ time: i + 1, value: v })));
+    chart.timeScale().fitContent();
+})();
+</script>
+{% endif %}
 {% endblock %}

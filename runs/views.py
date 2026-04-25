@@ -7,8 +7,73 @@ from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from .models import BacktestRun, ParameterSweep, Trade
+from bars.models import Bar, Symbol
+
+from .models import BacktestRun, EquityPoint, ParameterSweep, Strategy, Trade
 from .tasks import optimize, run_backtest
+
+
+@require_GET
+@login_required
+def dashboard(request):
+    """Data-driven landing: counts + latest run + top Sharpe + recent activity."""
+    counts = {
+        "runs": BacktestRun.objects.count(),
+        "sweeps": ParameterSweep.objects.count(),
+        "strategies": Strategy.objects.filter(is_active=True).count(),
+        "symbols": Symbol.objects.filter(is_active=True).count(),
+        "bars": Bar.objects.count(),
+    }
+
+    latest_run = (
+        BacktestRun.objects.select_related("strategy", "metrics")
+        .prefetch_related("symbols")
+        .order_by("-created_at")
+        .first()
+    )
+
+    sparkline_points: list[dict] = []
+    if latest_run:
+        sparkline_points = list(
+            EquityPoint.objects.filter(run=latest_run)
+            .order_by("ts")
+            .values_list("equity", flat=True)
+        )
+
+    top_runs = list(
+        BacktestRun.objects.filter(
+            status=BacktestRun.Status.SUCCEEDED,
+            metrics__sharpe_ratio__isnull=False,
+        )
+        .select_related("strategy", "metrics")
+        .order_by("-metrics__sharpe_ratio")[:5]
+    )
+
+    latest_sweep = (
+        ParameterSweep.objects.select_related("strategy")
+        .prefetch_related("symbols")
+        .order_by("-created_at")
+        .first()
+    )
+
+    recent_runs = list(
+        BacktestRun.objects.select_related("strategy", "metrics")
+        .prefetch_related("symbols")
+        .order_by("-created_at")[:6]
+    )
+
+    return render(
+        request,
+        "landing.html",
+        {
+            "counts": counts,
+            "latest_run": latest_run,
+            "sparkline": [float(v) for v in sparkline_points],
+            "top_runs": top_runs,
+            "latest_sweep": latest_sweep,
+            "recent_runs": recent_runs,
+        },
+    )
 
 
 @require_GET

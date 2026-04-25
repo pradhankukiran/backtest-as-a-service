@@ -3,10 +3,11 @@
 from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
-from django.views.generic import TemplateView
+from django.views.generic.base import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from runs.views import (
+    dashboard,
     rerun_run,
     rerun_sweep,
     run_detail,
@@ -21,7 +22,11 @@ def health_check(_request):
 
 
 urlpatterns = [
-    path("", TemplateView.as_view(template_name="landing.html"), name="landing"),
+    path("", dashboard, name="landing"),
+    path(
+        "favicon.ico",
+        RedirectView.as_view(url="/static/runs/favicon.svg", permanent=True),
+    ),
     path("runs/", runs_list, name="runs-page"),
     path("runs/<int:run_id>/", run_detail, name="run-detail"),
     path("runs/<int:run_id>/rerun/", rerun_run, name="run-rerun"),
