@@ -4,9 +4,14 @@
     border-radius: 0 !important;
 }
 
-#nav-sidebar-inner a.bg-primary-600.w-\[38px\],
-#nav-sidebar-inner a[href="/admin/"]:has(> .material-symbols-outlined) {
-    display: none !important;
+/* The site icon SVG fills its own background, so drop unfold's primary-tinted
+   square wrapper to avoid a coloured halo around the logomark. */
+#nav-sidebar-inner a.bg-primary-600.w-\[38px\] {
+    background: transparent !important;
+}
+#nav-sidebar-inner a.bg-primary-600.w-\[38px\] img {
+    width: 100% !important;
+    height: 100% !important;
 }
 
 #site-name a,

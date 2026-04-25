@@ -153,6 +153,7 @@ UNFOLD = {
     "SITE_HEADER": "Backtester",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
+    "SITE_ICON": lambda request: static("runs/favicon.svg"),
     "THEME": "light",
     "STYLES": [
         lambda request: static("runs/admin-overrides.css"),
