@@ -32,6 +32,54 @@ class Strategy(TimestampedModel):
         return self.name
 
 
+class ParameterSweep(TimestampedModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        SUCCEEDED = "succeeded", "Succeeded"
+        PARTIAL = "partial", "Partial"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+
+    strategy = models.ForeignKey(Strategy, on_delete=models.PROTECT, related_name="sweeps")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="parameter_sweeps",
+    )
+    symbols = models.ManyToManyField(Symbol, related_name="sweeps")
+    timeframe = models.CharField(max_length=8, default="1d")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    initial_capital = models.DecimalField(max_digits=18, decimal_places=2, default=10000)
+    commission_bps = models.PositiveIntegerField(default=20)
+    slippage_bps = models.PositiveIntegerField(default=0)
+    base_params = models.JSONField(default=dict, blank=True)
+    grid = models.JSONField(
+        default=dict,
+        help_text='{"param_name": [v1, v2, v3]} or {"param_name": {"start":5,"stop":30,"step":5}}',
+    )
+
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration_ms = models.PositiveIntegerField(null=True, blank=True)
+
+    children_total = models.PositiveIntegerField(default=0)
+    children_succeeded = models.PositiveIntegerField(default=0)
+    children_failed = models.PositiveIntegerField(default=0)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["status", "-created_at"])]
+
+    def __str__(self) -> str:
+        return f"Sweep #{self.id} {self.strategy.name} ({self.status})"
+
+
 class BacktestRun(TimestampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"
@@ -41,6 +89,13 @@ class BacktestRun(TimestampedModel):
         CANCELLED = "cancelled", "Cancelled"
 
     strategy = models.ForeignKey(Strategy, on_delete=models.PROTECT, related_name="runs")
+    sweep = models.ForeignKey(
+        ParameterSweep,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="runs",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True,
