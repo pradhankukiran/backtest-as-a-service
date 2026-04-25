@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Sweeps &middot; Backtester{% endblock %}
+
+{% block content %}
+<header style="margin-bottom:32px;">
+    <h1>Parameter sweeps</h1>
+    <p class="lead">{{ sweeps|length }} sweep{{ sweeps|length|pluralize }} stored.</p>
+</header>
+
+{% if sweeps %}
+<table>
+    <thead>
+        <tr>
+            <th class="num">#</th>
+            <th>Strategy</th>
+            <th>Symbols</th>
+            <th>Range</th>
+            <th>Status</th>
+            <th class="num">Children</th>
+            <th class="num">Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for sweep in sweeps %}
+        <tr style="cursor:pointer;" onclick="window.location='{% url 'sweep-detail' sweep.id %}'">
+            <td class="num mono">{{ sweep.id }}</td>
+            <td><a href="{% url 'sweep-detail' sweep.id %}">{{ sweep.strategy.name }}</a></td>
+            <td>{% for s in sweep.symbols.all %}<span class="mono">{{ s.ticker }}</span>{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+            <td class="mono">{{ sweep.start_date }} &rarr; {{ sweep.end_date }}</td>
+            <td>
+                {% if sweep.status == 'succeeded' %}<span class="pill ok"><span class="dot"></span>{{ sweep.status }}</span>
+                {% elif sweep.status == 'partial' %}<span class="pill warn"><span class="dot"></span>{{ sweep.status }}</span>
+                {% elif sweep.status == 'failed' or sweep.status == 'cancelled' %}<span class="pill bad"><span class="dot"></span>{{ sweep.status }}</span>
+                {% elif sweep.status == 'running' %}<span class="pill warn"><span class="dot"></span>{{ sweep.status }}</span>
+                {% else %}<span class="pill idle"><span class="dot"></span>{{ sweep.status }}</span>{% endif %}
+            </td>
+            <td class="num">{{ sweep.children_succeeded }}/{{ sweep.children_total }}</td>
+            <td class="num">{% if sweep.duration_ms %}{{ sweep.duration_ms }}ms{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color:var(--muted);">No sweeps yet. Create one via <span class="mono">POST /api/sweeps/</span>.</p>
+{% endif %}
+{% endblock %}
