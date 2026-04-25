@@ -41,7 +41,7 @@
 
 <section>
     <h2>Equity curve</h2>
-    <div id="equity-chart" style="width:100%;height:420px;background:#0b1224;"></div>
+    <div id="equity-chart" style="width:100%;height:420px;background:#022c22;"></div>
 </section>
 
 {% if trades %}
@@ -84,30 +84,30 @@
     const resp = await fetch('/api/runs/{{ run.id }}/equity-curve/', {credentials: 'include'});
     if (!resp.ok) {
         document.getElementById('equity-chart').innerHTML =
-            '<p style="color:#94a3c4;padding:24px;font-family:Inter;">No equity data yet.</p>';
+            '<p style="color:#6ee7b7;padding:24px;font-family:Inter;">No equity data yet.</p>';
         return;
     }
     const rows = await resp.json();
     if (rows.length === 0) {
         document.getElementById('equity-chart').innerHTML =
-            '<p style="color:#94a3c4;padding:24px;font-family:Inter;">No equity data yet.</p>';
+            '<p style="color:#6ee7b7;padding:24px;font-family:Inter;">No equity data yet.</p>';
         return;
     }
 
     const chart = LightweightCharts.createChart(
         document.getElementById('equity-chart'),
         {
-            layout:    { background: { color: '#0b1224' }, textColor: '#c7d2fe' },
-            grid:      { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-            rightPriceScale: { borderColor: '#334155' },
-            timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false },
+            layout:    { background: { color: '#022c22' }, textColor: '#d1fae5' },
+            grid:      { vertLines: { color: '#1f2e2a' }, horzLines: { color: '#1f2e2a' } },
+            rightPriceScale: { borderColor: '#3f5a52' },
+            timeScale: { borderColor: '#3f5a52', timeVisible: true, secondsVisible: false },
             crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
             autoSize:  true,
         }
     );
 
     const equity = chart.addSeries(LightweightCharts.LineSeries, {
-        color: '#60a5fa',
+        color: '#34d399',
         lineWidth: 2,
         priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
     });

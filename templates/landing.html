@@ -35,13 +35,13 @@
 
 <section>
     <h2>Submit a backtest from the shell</h2>
-    <div class="mono" style="background:var(--navy-darker);color:#e2e8ff;padding:20px 24px;font-size:13px;line-height:1.7;overflow-x:auto;border-left:3px solid var(--navy);"><span style="color:#94a3c4;"># 1. ingest bars for a symbol</span>
+    <div class="mono" style="background:var(--emerald-darker);color:#d1fae5;padding:20px 24px;font-size:13px;line-height:1.7;overflow-x:auto;border-left:3px solid var(--emerald);"><span style="color:#6ee7b7;"># 1. ingest bars for a symbol</span>
 python manage.py ingest_bars AAPL --create-missing --days-back 365
 
-<span style="color:#94a3c4;"># 2. install the built-in SMA crossover strategy</span>
+<span style="color:#6ee7b7;"># 2. install the built-in SMA crossover strategy</span>
 python manage.py install_builtin_strategies
 
-<span style="color:#94a3c4;"># 3. POST a run via the REST API (or use the admin)</span>
+<span style="color:#6ee7b7;"># 3. POST a run via the REST API (or use the admin)</span>
 curl -X POST http://localhost:8000/api/runs/ \
   -H 'Content-Type: application/json' \
   -d '{
