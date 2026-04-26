@@ -1,14 +1,26 @@
-"""Convert bars_bar to a TimescaleDB hypertable on `ts` (Postgres only).
+"""Convert bars_bar to a TimescaleDB hypertable on `ts` (Postgres + Timescale).
 
-The migration is a no-op on non-Postgres backends so the SQLite test runner
-still works for unit tests that don't need time-series semantics.
+Skipped on:
+  * non-Postgres backends (SQLite test runner)
+  * Postgres instances where the timescaledb extension is not installable
+    (e.g. plain managed Postgres on Railway / Supabase / etc.)
 """
 
 from django.db import migrations
 
 
+def _has_timescale(schema_editor) -> bool:
+    cursor = schema_editor.connection.cursor()
+    cursor.execute(
+        "SELECT 1 FROM pg_available_extensions WHERE name = 'timescaledb' LIMIT 1;"
+    )
+    return cursor.fetchone() is not None
+
+
 def make_hypertable(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
+        return
+    if not _has_timescale(schema_editor):
         return
     schema_editor.execute("CREATE EXTENSION IF NOT EXISTS timescaledb;")
     schema_editor.execute("ALTER TABLE bars_bar DROP CONSTRAINT bars_bar_pkey;")
@@ -27,6 +39,8 @@ def make_hypertable(apps, schema_editor):
 
 def revert_hypertable(apps, schema_editor):
     if schema_editor.connection.vendor != "postgresql":
+        return
+    if not _has_timescale(schema_editor):
         return
     schema_editor.execute(
         "SELECT drop_chunks('bars_bar', older_than => NOW() + INTERVAL '100 years');"
