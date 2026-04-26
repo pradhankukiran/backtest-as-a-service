@@ -13,6 +13,14 @@ case "$ROLE" in
     exec celery -A backtester worker -Q default -n default@%h \
       --loglevel=info --concurrency=4
     ;;
+  worker-and-beat)
+    # Runs both the default-queue worker and the beat scheduler in one
+    # container. Use on resource-constrained deploys where a separate beat
+    # service isn't practical. Only ONE worker-and-beat instance must run
+    # cluster-wide so the schedule doesn't double-fire.
+    exec celery -A backtester worker -Q default -n default@%h \
+      --beat --loglevel=info --concurrency=4
+    ;;
   worker-untrusted)
     # Consumes ONLY the 'untrusted' queue. User-supplied strategy code runs
     # here. --max-tasks-per-child=1 means each task runs in a fresh process,
